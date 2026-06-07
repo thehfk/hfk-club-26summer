@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HFK 26여름 클럽 신청 현황</title>
+<style>
+  :root {
+    --hfk-red: #980000;
+    --hfk-red-soft: #f4ecec;
+    --text: #1a1a1a;
+    --muted: #666;
+    --line: #e5e5e5;
+    --line-strong: #d0d0d0;
+    --bg: #f7f7f5;
+    --card: #ffffff;
+    --soft: #f4f0f0;
+    --green: #2d6a4f;
+    --blue: #1a5b8a;
+    --purple: #5a3d8a;
+    --orange: #a0522d;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    font-size: 16px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 80px; }
+
+  header {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 22px 26px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--hfk-red);
+  }
+  .header-meta {
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .refresh-btn {
+    background: var(--hfk-red);
+    color: #fff;
+    border: 0;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .refresh-btn:hover { background: #7a0000; }
+  .refresh-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px 22px;
+  }
+  .stat-label {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .stat-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  section.card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 24px 26px;
+    margin-bottom: 16px;
+  }
+  section.card h2 {
+    margin: 0 0 16px;
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .bar-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .bar-row {
+    display: grid;
+    grid-template-columns: 180px 1fr 50px 60px;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0;
+    font-size: 13px;
+  }
+  .bar-row .name {
+    color: var(--text);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .bar-row .name .id {
+    display: inline-block;
+    background: var(--soft);
+    color: var(--hfk-red);
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    margin-right: 6px;
+    font-family: ui-monospace, monospace;
+  }
+  .bar-track {
+    background: var(--soft);
+    border-radius: 4px;
+    height: 18px;
+    position: relative;
+    overflow: hidden;
+  }
+  .bar-fill {
+    background: var(--hfk-red);
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s;
+  }
+  .bar-row.over .bar-fill { background: #c44; }
+  .bar-row.warning .bar-fill { background: #d77; }
+  .bar-count {
+    font-weight: 700;
+    text-align: right;
+    color: var(--text);
+  }
+  .bar-cap {
+    text-align: right;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .bar-cap.full { color: var(--hfk-red); font-weight: 700; }
+
+  .member-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+  }
+  .member-pill {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .member-pill .label {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .member-pill .value {
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .host-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  .host-table th, .host-table td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  .host-table th {
+    background: var(--soft);
+    font-weight: 600;
+    color: var(--text);
+    font-size: 12.5px;
+  }
+  .host-table tr:hover { background: #faf6f6; }
+  .host-table .clubs-cell {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .host-table .motiv-cell {
+    max-width: 400px;
+    font-size: 12.5px;
+    color: var(--text);
+    white-space: pre-wrap;
+    line-height: 1.5;
+  }
+
+  .filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .chip {
+    background: #fff;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--text);
+  }
+  .chip.active {
+    background: var(--hfk-red);
+    color: #fff;
+    border-color: var(--hfk-red);
+  }
+  .chip:hover { border-color: var(--hfk-red); }
+
+  .empty {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .login-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .login-box {
+    background: #fff;
+    border-radius: 12px;
+    padding: 32px 28px;
+    width: 90%;
+    max-width: 360px;
+  }
+  .login-box h2 {
+    margin: 0 0 16px;
+    font-size: 18px;
+    color: var(--hfk-red);
+  }
+  .login-box input {
+    width: 100%;
+    padding: 11px 14px;
+    font-size: 15px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-family: inherit;
+    margin-bottom: 12px;
+  }
+  .login-box input:focus {
+    outline: none;
+    border-color: var(--hfk-red);
+  }
+  .login-box button {
+    width: 100%;
+    background: var(--hfk-red);
+    color: #fff;
+    border: 0;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .login-error {
+    color: var(--hfk-red);
+    font-size: 13px;
+    margin-top: 8px;
+    min-height: 18px;
+  }
+
+  @media (max-width: 720px) {
+    .wrap { padding: 16px 12px 60px; }
+    header { padding: 18px 20px; }
+    header h1 { font-size: 19px; }
+    .bar-row { grid-template-columns: 140px 1fr 40px 50px; font-size: 12px; }
+    .stat-value { font-size: 26px; }
+    .host-table th, .host-table td { padding: 8px 10px; font-size: 12.5px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loginGate" class="login-modal">
+  <div class="login-box">
+    <h2>HFK 클럽 신청 현황</h2>
+    <input type="password" id="pwInput" placeholder="암호를 입력해 주세요" autocomplete="off">
+    <button type="button" id="loginBtn">확인</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<div class="wrap" id="dashboard" style="display:none">
+  <header>
+    <h1>HFK 26여름시즌 클럽 신청 현황</h1>
+    <div class="header-meta">
+      <span id="lastUpdate"></span>
+      <button class="refresh-btn" id="refreshBtn">새로고침</button>
+    </div>
+  </header>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">전체 신청자</div>
+      <div class="stat-value" id="statSubmissions">-</div>
+      <div class="stat-sub">건</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">선택된 클럽</div>
+      <div class="stat-value" id="statSelections">-</div>
+      <div class="stat-sub">건 (중복 포함)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">평균 선택 클럽 수</div>
+      <div class="stat-value" id="statAvg">-</div>
+      <div class="stat-sub">개/사람</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">호스트 지원자</div>
+      <div class="stat-value" id="statHosts">-</div>
+      <div class="stat-sub">명</div>
+    </div>
+  </div>
+
+  <section class="card">
+    <h2>클럽별 신청 수</h2>
+    <div class="filter-row">
+      <button class="chip active" data-mode="all" type="button">전체</button>
+      <button class="chip" data-mode="온라인" type="button">온라인</button>
+      <button class="chip" data-mode="오프라인" type="button">오프라인</button>
+    </div>
+    <div class="bar-list" id="clubBars"></div>
+  </section>
+
+  <section class="card">
+    <h2>가입 대상별 구성</h2>
+    <div class="member-grid" id="memberBreakdown"></div>
+  </section>
+
+  <section class="card">
+    <h2>호스트 지원자 (<span id="hostCount">0</span>명)</h2>
+    <div id="hostList"></div>
+  </section>
+</div>
+
+<script>
+// === 설정 ===
+// Google Sheet에서 파일 → 공유 → 웹에 게시 → CSV 형식으로 게시한 URL
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRONuqty-0ofz0386iwiXx8cARfD0RJFUo3HH0BWNKiOLC4q14zL8TxFXGXL-KMyZzmYbBb_hpZSr9_/pub?gid=1684321573&single=true&output=csv";
+// 대시보드 접근 암호
+const ACCESS_PW = "hfk1004";
+
+// 클럽 정원 정보 (hfk-club-form.html과 동기화)
+const CLUB_INFO = {
+  "0-주간회고클럽":              { id: "0", name: "주간회고클럽", mode: "온라인", cap: null },
+  "1-HBR챌린져스":               { id: "1", name: "HBR 챌린져스", mode: "온라인", cap: null },
+  "2-필사클럽":                   { id: "2", name: "필사클럽", mode: "온라인", cap: null },
+  "3-문장수집클럽":               { id: "3", name: "문장수집클럽", mode: "온라인", cap: null },
+  "4-차곡차곡SNS클럽":            { id: "4", name: "차곡차곡SNS클럽", mode: "온라인", cap: null },
+  "5-디테일수집클럽":             { id: "5", name: "디테일수집클럽", mode: "온라인", cap: null },
+  "a-와인소사이어티":             { id: "a", name: "와인 소사이어티", mode: "오프라인", cap: 11 },
+  "b-보드게임클럽":               { id: "b", name: "보드게임클럽", mode: "오프라인", cap: 6 },
+  "c-기획자의북소사이어티":       { id: "c", name: "기획자의 북 소사이어티", mode: "오프라인", cap: 8 },
+  "d-유명하지않은사람들의에세이클럽": { id: "d", name: "에세이 클럽", mode: "오프라인", cap: 11 },
+  "e-벽돌책완독클럽":             { id: "e", name: "벽돌책 완독클럽", mode: "오프라인", cap: 12 },
+  "f-사부작명상클럽":             { id: "f", name: "사부작 명상 클럽", mode: "오프라인", cap: 8 },
+  "g-또갈집":                     { id: "g", name: "또갈집", mode: "오프라인", cap: 8 },
+  "h-어드민나이트":               { id: "h", name: "어드민 나이트", mode: "오프라인", cap: 8 },
+  "i-AI모각작":                   { id: "i", name: "AI 모각작", mode: "오프라인", cap: 11 },
+  "j-서울북모닝클럽":             { id: "j", name: "서울 북모닝 클럽", mode: "오프라인", cap: 8 },
+  "k-정동바이브코딩클럽":         { id: "k", name: "정동 바이브코딩 클럽", mode: "오프라인", cap: 11 },
+  "l-북적북적교환소":             { id: "l", name: "북적북적 교환소", mode: "오프라인", cap: 11 },
+  "m-서울글쓰기리듬클럽":         { id: "m", name: "서울 글쓰기리듬 클럽", mode: "오프라인", cap: 8 },
+  "n-바이브마케터클럽":           { id: "n", name: "바이브마케터 클럽", mode: "오프라인", cap: 8 },
+  "o-부케빌더스":                 { id: "o", name: "부케 빌더스", mode: "오프라인", cap: 8 },
+  "p-월간챌린지클럽":             { id: "p", name: "월간 챌린지 클럽", mode: "오프라인", cap: 8 },
+  "q-서울살래":                   { id: "q", name: "서울살래", mode: "오프라인", cap: 8 },
+  "r-향신료미식클럽":             { id: "r", name: "향신료 미식 클럽", mode: "오프라인", cap: 8 },
+  "s-로스팅랑데부":               { id: "s", name: "로스팅 랑데부", mode: "오프라인", cap: 6 },
+  "t-요즘난어떻게살고있지":       { id: "t", name: "요즘 난 어떻게 살고 있지?", mode: "오프라인", cap: 11 },
+  "u-월간가위풀":                 { id: "u", name: "월간 가위풀", mode: "오프라인", cap: 8 },
+  "v-일본와이너리투어":           { id: "v", name: "일본 와이너리 투어", mode: "오프라인", cap: 8 },
+  "w-MindWaves":                  { id: "w", name: "Mind Waves", mode: "오프라인", cap: 4 },
+  "x-흥미찐zine열차":             { id: "x", name: "흥미찐Zine 열차", mode: "오프라인", cap: 7 },
+};
+
+// === 로그인 게이트 ===
+const LS_KEY = "hfk-dashboard-auth";
+function checkAuth() {
+  if (sessionStorage.getItem(LS_KEY) === ACCESS_PW) {
+    showDashboard();
+    return;
+  }
+  document.getElementById("pwInput").focus();
+}
+function showDashboard() {
+  document.getElementById("loginGate").style.display = "none";
+  document.getElementById("dashboard").style.display = "block";
+  loadData();
+}
+document.getElementById("loginBtn").addEventListener("click", () => {
+  const pw = document.getElementById("pwInput").value;
+  if (pw === ACCESS_PW) {
+    sessionStorage.setItem(LS_KEY, pw);
+    showDashboard();
+  } else {
+    document.getElementById("loginError").textContent = "암호가 일치하지 않습니다.";
+  }
+});
+document.getElementById("pwInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") document.getElementById("loginBtn").click();
+});
+
+// === CSV 파싱 (간단 버전, 따옴표 처리 포함) ===
+function parseCSV(text) {
+  const rows = [];
+  let row = [], cell = "", inQuote = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuote) {
+      if (c === '"') {
+        if (text[i+1] === '"') { cell += '"'; i++; }
+        else inQuote = false;
+      } else cell += c;
+    } else {
+      if (c === '"') inQuote = true;
+      else if (c === ',') { row.push(cell); cell = ""; }
+      else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ""; }
+      else if (c === '\r') {}
+      else cell += c;
+    }
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+// === 데이터 로드 ===
+let state = {
+  rows: [],
+  headers: [],
+  mode: "all"
+};
+
+async function loadData() {
+  const btn = document.getElementById("refreshBtn");
+  btn.disabled = true;
+  btn.textContent = "불러오는 중...";
+  try {
+    if (CSV_URL.startsWith("REPLACE")) {
+      throw new Error("CSV_URL을 설정해 주세요 (hfk-club-dashboard.html 상단)");
+    }
+    const res = await fetch(CSV_URL + "&_t=" + Date.now());
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const text = await res.text();
+    const rows = parseCSV(text);
+    state.headers = rows[0] || [];
+    state.rows = rows.slice(1).filter(r => r.length > 1 && r[0]);
+    document.getElementById("lastUpdate").textContent = "업데이트: " + new Date().toLocaleString("ko-KR");
+    render();
+  } catch (e) {
+    alert("데이터를 불러오지 못했습니다.\n" + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "새로고침";
+  }
+}
+document.getElementById("refreshBtn").addEventListener("click", loadData);
+
+// === 컬럼 찾기 ===
+function colIdx(keyword) {
+  return state.headers.findIndex(h => h && h.includes(keyword));
+}
+
+// === 렌더링 ===
+function render() {
+  const idxClubs = colIdx("클럽");
+  const idxName = colIdx("이름");
+  const idxMotiv = colIdx("동기");
+  const idxHost = colIdx("호스트");
+  const idxTarget = colIdx("가입");
+
+  // 통계
+  const totalSubs = state.rows.length;
+  let totalSelections = 0;
+  const clubCounts = {};
+  const memberCounts = {};
+  const hostList = [];
+
+  for (const r of state.rows) {
+    const clubsCell = (r[idxClubs] || "").trim();
+    if (clubsCell) {
+      const clubs = clubsCell.split(/,\s*/).filter(c => c);
+      totalSelections += clubs.length;
+      for (const c of clubs) {
+        clubCounts[c] = (clubCounts[c] || 0) + 1;
+      }
+    }
+    const target = (r[idxTarget] || "").trim();
+    if (target) memberCounts[target] = (memberCounts[target] || 0) + 1;
+
+    const host = (r[idxHost] || "").trim();
+    if (host && host.includes("호스트 지원합니다")) {
+      hostList.push({
+        name: r[idxName] || "(이름 없음)",
+        clubs: clubsCell,
+        motivation: r[idxMotiv] || ""
+      });
+    }
+  }
+
+  document.getElementById("statSubmissions").textContent = totalSubs;
+  document.getElementById("statSelections").textContent = totalSelections;
+  document.getElementById("statAvg").textContent = totalSubs ? (totalSelections / totalSubs).toFixed(1) : "0";
+  document.getElementById("statHosts").textContent = hostList.length;
+
+  renderClubBars(clubCounts);
+  renderMembers(memberCounts);
+  renderHosts(hostList);
+}
+
+function renderClubBars(counts) {
+  const container = document.getElementById("clubBars");
+  container.innerHTML = "";
+  const entries = Object.entries(CLUB_INFO)
+    .filter(([k, info]) => state.mode === "all" || info.mode === state.mode)
+    .map(([k, info]) => ({ key: k, info, count: counts[k] || 0 }))
+    .sort((a, b) => b.count - a.count);
+
+  const maxCount = Math.max(1, ...entries.map(e => e.count));
+
+  for (const { key, info, count } of entries) {
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    const pct = (count / maxCount) * 100;
+    const capRatio = info.cap ? count / info.cap : 0;
+    const capLabel = info.cap ? `/ ${info.cap}` : "(제한없음)";
+    const capCls = info.cap && count >= info.cap ? "full" : "";
+    if (info.cap && count > info.cap) row.classList.add("over");
+    else if (info.cap && count >= info.cap * 0.8) row.classList.add("warning");
+
+    row.innerHTML = `
+      <div class="name"><span class="id">${info.id}</span>${info.name}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+      <div class="bar-count">${count}</div>
+      <div class="bar-cap ${capCls}">${capLabel}</div>
+    `;
+    container.appendChild(row);
+  }
+}
+
+function renderMembers(counts) {
+  const container = document.getElementById("memberBreakdown");
+  container.innerHTML = "";
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) {
+    container.innerHTML = '<div class="empty">아직 신청자가 없습니다.</div>';
+    return;
+  }
+  for (const [label, value] of entries) {
+    const pill = document.createElement("div");
+    pill.className = "member-pill";
+    pill.innerHTML = `<span class="label">${escapeHtml(label)}</span><span class="value">${value}</span>`;
+    container.appendChild(pill);
+  }
+}
+
+function renderHosts(hosts) {
+  const container = document.getElementById("hostList");
+  document.getElementById("hostCount").textContent = hosts.length;
+  if (hosts.length === 0) {
+    container.innerHTML = '<div class="empty">아직 호스트 지원자가 없습니다.</div>';
+    return;
+  }
+  const table = document.createElement("table");
+  table.className = "host-table";
+  table.innerHTML = `
+    <thead>
+      <tr><th>이름</th><th>신청 클럽</th><th>신청 동기</th></tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  const tbody = table.querySelector("tbody");
+  for (const h of hosts) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(h.name)}</td>
+      <td class="clubs-cell">${escapeHtml(h.clubs)}</td>
+      <td class="motiv-cell">${escapeHtml(h.motivation)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+  container.innerHTML = "";
+  container.appendChild(table);
+}
+
+function escapeHtml(s) {
+  return (s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+
+// 필터 chip
+document.querySelectorAll(".filter-row .chip").forEach(chip => {
+  chip.addEventListener("click", () => {
+    document.querySelectorAll(".filter-row .chip").forEach(c => c.classList.remove("active"));
+    chip.classList.add("active");
+    state.mode = chip.dataset.mode;
+    render();
+  });
+});
+
+checkAuth();
+</script>
+</body>
+</html>
