@@ -241,6 +241,13 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .member-pill:hover { border-color: var(--hfk-red); }
+  .member-pill.active {
+    border-color: var(--hfk-red);
+    background: var(--hfk-red-soft);
   }
   .member-pill .label {
     font-size: 13px;
@@ -432,6 +439,7 @@
   <section class="card">
     <h2>가입 대상별 구성</h2>
     <div class="member-grid" id="memberBreakdown"></div>
+    <div id="memberPanel"></div>
   </section>
 
   <section class="card">
@@ -537,7 +545,9 @@ let state = {
   headers: [],
   mode: "all",
   clubApplicants: {},
-  expandedClub: null
+  expandedClub: null,
+  targetApplicants: {},
+  expandedTarget: null
 };
 
 async function loadData() {
@@ -585,6 +595,7 @@ function render() {
   const memberCounts = {};
   const hostList = [];
   const clubApplicants = {};
+  const targetApplicants = {};
 
   for (const r of state.rows) {
     const clubsCell = (r[idxClubs] || "").trim();
@@ -603,7 +614,11 @@ function render() {
         clubApplicants[c].push({ name, motivation, isHost, target });
       }
     }
-    if (target) memberCounts[target] = (memberCounts[target] || 0) + 1;
+    if (target) {
+      memberCounts[target] = (memberCounts[target] || 0) + 1;
+      if (!targetApplicants[target]) targetApplicants[target] = [];
+      targetApplicants[target].push({ name, motivation, isHost, target, clubs: clubsCell });
+    }
 
     if (isHost) {
       hostList.push({
@@ -614,6 +629,7 @@ function render() {
     }
   }
   state.clubApplicants = clubApplicants;
+  state.targetApplicants = targetApplicants;
 
   document.getElementById("statSubmissions").textContent = totalSubs;
   document.getElementById("statSelections").textContent = totalSelections;
@@ -700,7 +716,9 @@ function shortTarget(t) {
 
 function renderMembers(counts) {
   const container = document.getElementById("memberBreakdown");
+  const panelContainer = document.getElementById("memberPanel");
   container.innerHTML = "";
+  panelContainer.innerHTML = "";
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   if (entries.length === 0) {
     container.innerHTML = '<div class="empty">아직 신청자가 없습니다.</div>';
@@ -709,9 +727,45 @@ function renderMembers(counts) {
   for (const [label, value] of entries) {
     const pill = document.createElement("div");
     pill.className = "member-pill";
+    if (state.expandedTarget === label) pill.classList.add("active");
     pill.innerHTML = `<span class="label">${escapeHtml(label)}</span><span class="value">${value}</span>`;
+    pill.addEventListener("click", () => {
+      state.expandedTarget = state.expandedTarget === label ? null : label;
+      renderMembers(counts);
+    });
     container.appendChild(pill);
   }
+  if (state.expandedTarget) {
+    panelContainer.innerHTML = "";
+    panelContainer.appendChild(buildTargetPanel(state.expandedTarget));
+  }
+}
+
+function buildTargetPanel(target) {
+  const panel = document.createElement("div");
+  panel.className = "applicants-panel";
+  panel.style.marginTop = "12px";
+  const applicants = state.targetApplicants[target] || [];
+  let html = `<div class="panel-head">${escapeHtml(target)} — ${applicants.length}명</div>`;
+  if (applicants.length === 0) {
+    html += `<div class="applicant-empty">아직 신청자가 없습니다.</div>`;
+  } else {
+    for (const a of applicants) {
+      const hostLabel = a.isHost ? `<span class="applicant-meta host">호스트 지원</span>` : "";
+      const clubsLabel = a.clubs ? `<span class="applicant-meta">${escapeHtml(a.clubs)}</span>` : "";
+      html += `
+        <div class="applicant-row">
+          <div class="applicant-head">
+            <span class="applicant-name">${escapeHtml(a.name)}</span>
+            ${hostLabel}${clubsLabel}
+          </div>
+          <div class="applicant-motivation">${escapeHtml(a.motivation) || '<span class="applicant-empty">(동기 미작성)</span>'}</div>
+        </div>
+      `;
+    }
+  }
+  panel.innerHTML = html;
+  return panel;
 }
 
 function renderHosts(hosts) {
