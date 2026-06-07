@@ -123,8 +123,66 @@
     grid-template-columns: 180px 1fr 50px 60px;
     align-items: center;
     gap: 10px;
-    padding: 4px 0;
+    padding: 6px 8px;
     font-size: 13px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.12s;
+  }
+  .bar-row:hover { background: #faf6f6; }
+  .bar-row.active { background: var(--hfk-red-soft); }
+  .applicants-panel {
+    background: var(--soft);
+    border-radius: 8px;
+    margin: 2px 0 8px;
+    padding: 12px 16px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .applicants-panel .panel-head {
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .applicant-row {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .applicant-row:last-child { border-bottom: 0; }
+  .applicant-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .applicant-name {
+    font-weight: 600;
+    color: var(--text);
+    font-size: 13.5px;
+  }
+  .applicant-meta {
+    font-size: 11.5px;
+    color: var(--muted);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 1px 8px;
+  }
+  .applicant-meta.host { color: var(--hfk-red); border-color: var(--hfk-red); }
+  .applicant-motivation {
+    color: var(--text);
+    white-space: pre-wrap;
+    font-size: 12.5px;
+    line-height: 1.65;
+    padding-left: 2px;
+  }
+  .applicant-empty {
+    color: var(--muted);
+    font-style: italic;
+    font-size: 12.5px;
   }
   .bar-row .name {
     color: var(--text);
@@ -477,7 +535,9 @@ function parseCSV(text) {
 let state = {
   rows: [],
   headers: [],
-  mode: "all"
+  mode: "all",
+  clubApplicants: {},
+  expandedClub: null
 };
 
 async function loadData() {
@@ -524,28 +584,36 @@ function render() {
   const clubCounts = {};
   const memberCounts = {};
   const hostList = [];
+  const clubApplicants = {};
 
   for (const r of state.rows) {
     const clubsCell = (r[idxClubs] || "").trim();
+    const name = (r[idxName] || "(이름 없음)").trim();
+    const motivation = (r[idxMotiv] || "").trim();
+    const host = (r[idxHost] || "").trim();
+    const target = (r[idxTarget] || "").trim();
+    const isHost = host.includes("호스트 지원합니다");
+
     if (clubsCell) {
       const clubs = clubsCell.split(/,\s*/).filter(c => c);
       totalSelections += clubs.length;
       for (const c of clubs) {
         clubCounts[c] = (clubCounts[c] || 0) + 1;
+        if (!clubApplicants[c]) clubApplicants[c] = [];
+        clubApplicants[c].push({ name, motivation, isHost, target });
       }
     }
-    const target = (r[idxTarget] || "").trim();
     if (target) memberCounts[target] = (memberCounts[target] || 0) + 1;
 
-    const host = (r[idxHost] || "").trim();
-    if (host && host.includes("호스트 지원합니다")) {
+    if (isHost) {
       hostList.push({
-        name: r[idxName] || "(이름 없음)",
+        name,
         clubs: clubsCell,
-        motivation: r[idxMotiv] || ""
+        motivation
       });
     }
   }
+  state.clubApplicants = clubApplicants;
 
   document.getElementById("statSubmissions").textContent = totalSubs;
   document.getElementById("statSelections").textContent = totalSelections;
@@ -570,8 +638,8 @@ function renderClubBars(counts) {
   for (const { key, info, count } of entries) {
     const row = document.createElement("div");
     row.className = "bar-row";
+    if (state.expandedClub === key) row.classList.add("active");
     const pct = (count / maxCount) * 100;
-    const capRatio = info.cap ? count / info.cap : 0;
     const capLabel = info.cap ? `/ ${info.cap}` : "(제한없음)";
     const capCls = info.cap && count >= info.cap ? "full" : "";
     if (info.cap && count > info.cap) row.classList.add("over");
@@ -583,8 +651,51 @@ function renderClubBars(counts) {
       <div class="bar-count">${count}</div>
       <div class="bar-cap ${capCls}">${capLabel}</div>
     `;
+    row.addEventListener("click", () => {
+      state.expandedClub = state.expandedClub === key ? null : key;
+      renderClubBars(state._lastCounts || {});
+    });
     container.appendChild(row);
+
+    if (state.expandedClub === key) {
+      container.appendChild(buildApplicantsPanel(key, info));
+    }
   }
+  state._lastCounts = counts;
+}
+
+function buildApplicantsPanel(clubKey, info) {
+  const panel = document.createElement("div");
+  panel.className = "applicants-panel";
+  const applicants = state.clubApplicants[clubKey] || [];
+  let html = `<div class="panel-head">${info.id}. ${escapeHtml(info.name)} — 신청자 ${applicants.length}명</div>`;
+  if (applicants.length === 0) {
+    html += `<div class="applicant-empty">아직 신청자가 없습니다.</div>`;
+  } else {
+    for (const a of applicants) {
+      const targetLabel = a.target ? `<span class="applicant-meta">${escapeHtml(shortTarget(a.target))}</span>` : "";
+      const hostLabel = a.isHost ? `<span class="applicant-meta host">호스트 지원</span>` : "";
+      html += `
+        <div class="applicant-row">
+          <div class="applicant-head">
+            <span class="applicant-name">${escapeHtml(a.name)}</span>
+            ${hostLabel}${targetLabel}
+          </div>
+          <div class="applicant-motivation">${escapeHtml(a.motivation) || '<span class="applicant-empty">(동기 미작성)</span>'}</div>
+        </div>
+      `;
+    }
+  }
+  panel.innerHTML = html;
+  return panel;
+}
+
+function shortTarget(t) {
+  if (t.includes("ODS")) return "ODC";
+  if (t.includes("파트너")) return "파트너";
+  if (t.includes("비시즌")) return "비시즌";
+  if (t.includes("여름")) return "여름시즌";
+  return t.slice(0, 10);
 }
 
 function renderMembers(counts) {
