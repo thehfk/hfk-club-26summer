@@ -120,7 +120,7 @@
   }
   .bar-row {
     display: grid;
-    grid-template-columns: 180px 1fr 50px 60px;
+    grid-template-columns: 28px 180px 1fr 50px 60px;
     align-items: center;
     gap: 10px;
     padding: 6px 8px;
@@ -129,6 +129,25 @@
     border-radius: 6px;
     transition: background 0.12s;
   }
+  .bar-row .club-select {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--hfk-red);
+    cursor: pointer;
+    margin: 0;
+  }
+  .bulk-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    background: var(--soft);
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .bulk-actions .label { color: var(--muted); font-weight: 500; }
+  .bulk-actions .count { font-weight: 700; color: var(--text); }
   .bar-row:hover { background: #faf6f6; }
   .bar-row.active { background: var(--hfk-red-soft); }
   .applicants-panel {
@@ -447,7 +466,7 @@
     .wrap { padding: 16px 12px 60px; }
     header { padding: 18px 20px; }
     header h1 { font-size: 19px; }
-    .bar-row { grid-template-columns: 140px 1fr 40px 50px; font-size: 12px; }
+    .bar-row { grid-template-columns: 24px 140px 1fr 40px 50px; font-size: 12px; }
     .stat-value { font-size: 26px; }
     .host-table th, .host-table td { padding: 8px 10px; font-size: 12.5px; }
   }
@@ -508,6 +527,14 @@
       <button class="chip" data-mode="온라인" type="button">온라인</button>
       <button class="chip" data-mode="오프라인" type="button">오프라인</button>
     </div>
+    <div class="bulk-actions">
+      <span class="label">선택한 클럽:</span>
+      <span class="count" id="selectedClubCount">0개</span>
+      <button class="channel-btn" type="button" id="bulkCreateBtn" disabled>채널 일괄 생성</button>
+      <span style="flex:1"></span>
+      <button class="channel-btn secondary" type="button" id="selectAllBtn">전체 선택</button>
+      <button class="channel-btn secondary" type="button" id="clearSelectBtn">선택 해제</button>
+    </div>
     <div class="bar-list" id="clubBars"></div>
   </section>
 
@@ -532,7 +559,7 @@ const ACCESS_PW = "hfk1004";
 
 // Apps Script 웹앱 URL (배포 후 채워주세요)
 // 형식: https://script.google.com/macros/s/AKfycb.../exec
-const CHANNEL_API_URL = "https://script.google.com/macros/s/AKfycbyswd0fRe5SaMnAjMKuUjxm9M2RQr7g6_xaskbfjQBGd52U2rrPaO3LDqcc-2h9dy5vUA/exec";
+const CHANNEL_API_URL = "REPLACE_WITH_APPS_SCRIPT_WEBAPP_URL";
 
 // 채널명 prefix
 const CHANNEL_PREFIX = "3--";
@@ -648,7 +675,8 @@ let state = {
   clubApplicants: {},
   expandedClub: null,
   targetApplicants: {},
-  expandedTarget: null
+  expandedTarget: null,
+  selectedClubs: new Set()
 };
 
 async function loadData() {
@@ -777,15 +805,25 @@ function renderClubBars(counts) {
     if (info.cap && count > info.cap) row.classList.add("over");
     else if (info.cap && count >= info.cap * 0.8) row.classList.add("warning");
 
+    const isSelected = state.selectedClubs.has(key);
     row.innerHTML = `
+      <input type="checkbox" class="club-select" data-key="${escapeAttr(key)}" ${isSelected ? "checked" : ""}>
       <div class="name"><span class="id">${info.id}</span>${info.name}</div>
       <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
       <div class="bar-count">${count}</div>
       <div class="bar-cap ${capCls}">${capLabel}</div>
     `;
-    row.addEventListener("click", () => {
+    row.addEventListener("click", (e) => {
+      if (e.target.classList.contains("club-select")) return;
       state.expandedClub = state.expandedClub === key ? null : key;
       renderClubBars(state._lastCounts || {});
+    });
+    const cb = row.querySelector(".club-select");
+    cb.addEventListener("click", (e) => e.stopPropagation());
+    cb.addEventListener("change", (e) => {
+      if (e.target.checked) state.selectedClubs.add(key);
+      else state.selectedClubs.delete(key);
+      updateBulkBar();
     });
     container.appendChild(row);
 
@@ -794,7 +832,55 @@ function renderClubBars(counts) {
     }
   }
   state._lastCounts = counts;
+  updateBulkBar();
 }
+
+function updateBulkBar() {
+  const cnt = state.selectedClubs.size;
+  document.getElementById("selectedClubCount").textContent = cnt + "개";
+  document.getElementById("bulkCreateBtn").disabled = cnt === 0;
+}
+
+document.getElementById("bulkCreateBtn").addEventListener("click", async () => {
+  const keys = Array.from(state.selectedClubs);
+  if (keys.length === 0) return;
+  if (!confirm(`${keys.length}개 클럽 채널을 생성합니다. 진행할까요?\n\n${keys.map(k => "  " + CHANNEL_PREFIX + k).join("\n")}`)) return;
+  const btn = document.getElementById("bulkCreateBtn");
+  btn.disabled = true;
+  let ok = 0, fail = 0, already = 0;
+  for (const key of keys) {
+    try {
+      const result = await callChannelAPI("createChannel", { name: CHANNEL_PREFIX + key });
+      if (result.ok) {
+        setChannelState(key, { id: result.channelId, name: result.channelName });
+        if (result.alreadyExists) already++;
+        else ok++;
+      } else {
+        fail++;
+        console.error(`${key}: ${result.error}`);
+      }
+    } catch (e) {
+      fail++;
+      console.error(`${key}: ${e.message}`);
+    }
+  }
+  showToast(`생성 ${ok}개 · 이미 있음 ${already}개 · 실패 ${fail}개`, fail ? "error" : "success");
+  state.selectedClubs.clear();
+  renderClubBars(state._lastCounts || {});
+});
+
+document.getElementById("selectAllBtn").addEventListener("click", () => {
+  for (const k of Object.keys(CLUB_INFO)) {
+    if (state.mode === "all" || CLUB_INFO[k].mode === state.mode) {
+      state.selectedClubs.add(k);
+    }
+  }
+  renderClubBars(state._lastCounts || {});
+});
+document.getElementById("clearSelectBtn").addEventListener("click", () => {
+  state.selectedClubs.clear();
+  renderClubBars(state._lastCounts || {});
+});
 
 function buildApplicantsPanel(clubKey, info) {
   const panel = document.createElement("div");
