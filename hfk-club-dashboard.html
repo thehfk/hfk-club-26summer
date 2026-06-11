@@ -172,6 +172,10 @@
     padding: 1px 8px;
   }
   .applicant-meta.host { color: var(--hfk-red); border-color: var(--hfk-red); }
+  .applicant-meta.member-first { color: #2d6a4f; border-color: #2d6a4f; background: #e5f1ec; }
+  .applicant-meta.member-re { color: #1a5b8a; border-color: #1a5b8a; background: #e8f1f8; }
+  .applicant-meta.member-partner { color: var(--hfk-red); border-color: var(--hfk-red); background: var(--hfk-red-soft); }
+  .applicant-meta.member-unknown { color: #999; background: #f0f0f0; }
   .applicant-motivation {
     color: var(--text);
     white-space: pre-wrap;
@@ -424,6 +428,11 @@
       <div class="stat-value" id="statHosts">-</div>
       <div class="stat-sub">명</div>
     </div>
+    <div class="stat-card">
+      <div class="stat-label">첫등록 멤버 신청</div>
+      <div class="stat-value" id="statFirst">-</div>
+      <div class="stat-sub" id="statFirstSub">명</div>
+    </div>
   </div>
 
   <section class="card">
@@ -454,6 +463,22 @@
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRONuqty-0ofz0386iwiXx8cARfD0RJFUo3HH0BWNKiOLC4q14zL8TxFXGXL-KMyZzmYbBb_hpZSr9_/pub?gid=1684321573&single=true&output=csv";
 // 대시보드 접근 암호
 const ACCESS_PW = "hfk1004";
+
+// 26여름 멤버 명단 (HFK사람들 시트 기준, 2026-06-11 스냅샷)
+const MEMBER_STATUS = {
+  "박초희":"first","임이랑":"first","이호준":"first","오주영":"first","손지희":"first","이보라":"first","이유라":"first","강주언":"first","이성규":"first","김지원":"first","유은지":"first","최민정":"first","한소희":"first","김유석":"first","서연주":"first","김혜미":"first","김주현":"first","이정민":"first","유다솜":"first","박지영":"first","김태림":"first","임세리":"first","김진":"first","한승훈":"first","배진현":"first","김아영":"first","최경원":"first","이예현":"first","안현우":"first","서지희":"first","최성우":"first","김학서":"first","박혜봉":"first","김승연":"first","육근혜":"first","유영이":"first","주영은":"first","이선혜":"first",
+  "금가람":"re","유통민":"re","정나리":"re","김지현":"re","박정연":"re","안혜연":"re","김화진":"re","김희원":"re","김유일":"re","박아란":"re","김하나":"re","임성우":"re","이세림":"re","손현선":"re","강주현":"re","권오림":"re","손상희":"re","권수은":"re","임아영":"re","윤왕교":"re","김경아":"re","박승표":"re","장재형":"re","강혜원":"re","남은경":"re","허미현":"re","김세아":"re","김한울이":"re","돈명진":"re","원정현":"re","이홍진":"re","권도현":"re","신상호":"re","송선혜":"re","류채희":"re","이수림":"re","이정준":"re","김정민":"re","김혜리":"re","심수정":"re","홍수경":"re","전신애":"re","이현주":"re","서영인":"re","박혜림":"re","문윤선":"re","김민주":"re","홍은지":"re","허재영":"re","제정경":"re","최지영":"re","신윤아":"re","김선아":"re","조지현":"re","최소연":"re","한미정":"re","박미서":"re","김하정":"re","김남경":"re","조혜빈":"re","윤소현":"re","이수연":"re","한다희":"re","박여민":"re","홍원정":"re","윤아영":"re","진선라":"re","김민경":"re","주명선":"re","김미정":"re","도민우":"re","하현주":"re","박지원":"re","박시연":"re","나종원":"re","박재희":"re","김서현":"re","송서현":"re","방승환":"re","김혜림":"re","주선경":"re","고예환":"re","김한나":"re","서효정":"re","권나윤":"re","김수연":"re","배의열":"re","김규리":"re","김지애":"re","이주영":"re","선우정":"re","이수민":"re","김준형":"re","이효민":"re","김보경":"re","허재필":"re","박문희":"re",
+  "김동일":"partner","심현보":"partner","김민정":"partner","이동진":"partner","김라현":"partner","이강원":"partner","권소이":"partner","김재윤":"partner","이 림":"partner",
+  // 중복 이름 (여러 카테고리에 등장) - 가장 높은 권한 우선
+  "김준영":"re","박지영":"re","임아영":"partner","이슬기":"partner","전소영":"partner","김나의":"first","이민영":"first","박주영":"first","김지원":"first","임종수":"first","김경아":"re","이민정":"re"
+};
+
+function memberStatus(name) {
+  return MEMBER_STATUS[name] || null;
+}
+function memberStatusLabel(s) {
+  return s === "first" ? "첫등록" : s === "re" ? "재등록" : s === "partner" ? "파트너" : "미확인";
+}
 
 // 클럽 정원 정보 (hfk-club-form.html과 동기화)
 const CLUB_INFO = {
@@ -636,6 +661,18 @@ function render() {
   document.getElementById("statAvg").textContent = totalSubs ? (totalSelections / totalSubs).toFixed(1) : "0";
   document.getElementById("statHosts").textContent = hostList.length;
 
+  const statusCounts = { first: 0, re: 0, partner: 0, unknown: 0 };
+  const seenNames = new Set();
+  for (const r of state.rows) {
+    const name = (r[idxName] || "").trim();
+    if (!name || seenNames.has(name)) continue;
+    seenNames.add(name);
+    const s = memberStatus(name) || "unknown";
+    statusCounts[s]++;
+  }
+  document.getElementById("statFirst").textContent = statusCounts.first;
+  document.getElementById("statFirstSub").textContent = `재등록 ${statusCounts.re} · 파트너 ${statusCounts.partner} · 미확인 ${statusCounts.unknown}`;
+
   renderClubBars(clubCounts);
   renderMembers(memberCounts);
   renderHosts(hostList);
@@ -695,7 +732,7 @@ function buildApplicantsPanel(clubKey, info) {
         <div class="applicant-row">
           <div class="applicant-head">
             <span class="applicant-name">${escapeHtml(a.name)}</span>
-            ${hostLabel}${targetLabel}
+            ${memberBadge(a.name)}${hostLabel}${targetLabel}
           </div>
           <div class="applicant-motivation">${escapeHtml(a.motivation) || '<span class="applicant-empty">(동기 미작성)</span>'}</div>
         </div>
@@ -757,7 +794,7 @@ function buildTargetPanel(target) {
         <div class="applicant-row">
           <div class="applicant-head">
             <span class="applicant-name">${escapeHtml(a.name)}</span>
-            ${hostLabel}${clubsLabel}
+            ${memberBadge(a.name)}${hostLabel}${clubsLabel}
           </div>
           <div class="applicant-motivation">${escapeHtml(a.motivation) || '<span class="applicant-empty">(동기 미작성)</span>'}</div>
         </div>
@@ -787,7 +824,7 @@ function renderHosts(hosts) {
   for (const h of hosts) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${escapeHtml(h.name)}</td>
+      <td>${escapeHtml(h.name)} ${memberBadge(h.name)}</td>
       <td class="clubs-cell">${escapeHtml(h.clubs)}</td>
       <td class="motiv-cell">${escapeHtml(h.motivation)}</td>
     `;
@@ -799,6 +836,11 @@ function renderHosts(hosts) {
 
 function escapeHtml(s) {
   return (s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+function memberBadge(name) {
+  const s = memberStatus(name);
+  const cls = s ? `member-${s}` : "member-unknown";
+  return `<span class="applicant-meta ${cls}">${memberStatusLabel(s)}</span>`;
 }
 
 // 필터 chip
