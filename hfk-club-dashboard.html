@@ -261,6 +261,107 @@
   .toast.show { opacity: 1; }
   .toast.error { background: var(--hfk-red); }
   .toast.success { background: var(--green); }
+
+  /* 결과 모달 */
+  .result-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    padding: 20px;
+  }
+  .result-modal.show { display: flex; }
+  .result-box {
+    background: #fff;
+    border-radius: 12px;
+    padding: 26px 28px;
+    width: 100%;
+    max-width: 640px;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+  }
+  .result-box h3 {
+    margin: 0 0 16px;
+    font-size: 18px;
+    color: var(--hfk-red);
+    font-weight: 700;
+  }
+  .result-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .result-stat {
+    background: var(--soft);
+    padding: 12px 14px;
+    border-radius: 8px;
+    text-align: center;
+  }
+  .result-stat .val {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.1;
+  }
+  .result-stat .lbl {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .result-stat.warn .val { color: #d57218; }
+  .result-stat.err .val { color: var(--hfk-red); }
+  .result-stat.ok .val { color: var(--green); }
+  .result-section {
+    margin-top: 14px;
+  }
+  .result-section h4 {
+    font-size: 13.5px;
+    margin: 0 0 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+  .result-section h4.ok { background: #e5f1ec; color: #1a5b3a; }
+  .result-section h4.warn { background: #fff8d6; color: #946f00; }
+  .result-section h4.err { background: var(--hfk-red-soft); color: var(--hfk-red); }
+  .result-list {
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+    padding-left: 6px;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  .result-list .item {
+    padding: 4px 0;
+    border-bottom: 1px dotted var(--line);
+  }
+  .result-list .item:last-child { border-bottom: 0; }
+  .result-list .item .reason {
+    color: var(--muted);
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    margin-left: 6px;
+  }
+  .result-close {
+    margin-top: 18px;
+    width: 100%;
+    background: var(--hfk-red);
+    color: #fff;
+    border: 0;
+    padding: 11px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .result-close:hover { background: #7a0000; }
   .applicant-motivation {
     color: var(--text);
     white-space: pre-wrap;
@@ -548,6 +649,10 @@
     <h2>호스트 지원자 (<span id="hostCount">0</span>명)</h2>
     <div id="hostList"></div>
   </section>
+</div>
+
+<div class="result-modal" id="resultModal">
+  <div class="result-box" id="resultBox"></div>
 </div>
 
 <script>
@@ -1137,24 +1242,132 @@ async function handleInvite(clubKey, emails, rejectEmails) {
       rejectEmails: rejectEmails || [],
     });
     if (result.ok) {
-      const msgs = [];
-      msgs.push(`초대: ${result.invited}명`);
-      if (result.alreadyIn) msgs.push(`이미 참여: ${result.alreadyIn}명`);
-      if (result.rejectNotified && result.rejectNotified.length)
-        msgs.push(`미선정 DM: ${result.rejectNotified.length}명`);
-      if (result.lookupFailed && result.lookupFailed.length)
-        msgs.push(`초대 Slack 미가입: ${result.lookupFailed.length}명`);
-      if (result.rejectFailed && result.rejectFailed.length)
-        msgs.push(`DM 실패: ${result.rejectFailed.length}명`);
-      if (result.inviteFailed && result.inviteFailed.length)
-        msgs.push(`초대 실패: ${result.inviteFailed.length}명`);
-      showToast(msgs.join(" · "), "success");
+      showResultModal(clubKey, clubInfo, channel, result);
     } else {
       showToast("실패: " + result.error, "error");
     }
   } catch (e) {
     showToast("에러: " + e.message, "error");
   }
+}
+
+function nameByEmail(clubKey, email) {
+  const applicants = state.clubApplicants[clubKey] || [];
+  const a = applicants.find(x => x.email === email);
+  return a ? a.name : email;
+}
+
+function showResultModal(clubKey, clubInfo, channel, result) {
+  const modal = document.getElementById("resultModal");
+  const box = document.getElementById("resultBox");
+
+  const renderList = (items, getKey, getReason) => {
+    if (!items || items.length === 0) return "";
+    return `<div class="result-list">` + items.map(it => {
+      const k = getKey(it);
+      const r = getReason ? getReason(it) : "";
+      return `<div class="item">${escapeHtml(k)}${r ? `<span class="reason">${escapeHtml(r)}</span>` : ""}</div>`;
+    }).join("") + `</div>`;
+  };
+
+  const sections = [];
+
+  if (result.invited > 0) {
+    sections.push(`
+      <div class="result-section">
+        <h4 class="ok">✅ 채널 초대 완료 (${result.invited}명)</h4>
+      </div>`);
+  }
+  if (result.alreadyIn > 0) {
+    sections.push(`
+      <div class="result-section">
+        <h4 class="ok">↻ 이미 채널 멤버 (${result.alreadyIn}명)</h4>
+      </div>`);
+  }
+  if (result.rejectNotified && result.rejectNotified.length > 0) {
+    const items = result.rejectNotified.map(email => ({
+      name: nameByEmail(clubKey, email), email
+    }));
+    sections.push(`
+      <div class="result-section">
+        <h4 class="ok">📩 미선정 안내 DM 발송 (${result.rejectNotified.length}명)</h4>
+        ${renderList(items, it => `${it.name} (${it.email})`)}
+      </div>`);
+  }
+  if (result.lookupFailed && result.lookupFailed.length > 0) {
+    const items = result.lookupFailed.map(f => ({
+      name: nameByEmail(clubKey, f.email), email: f.email, error: f.error
+    }));
+    sections.push(`
+      <div class="result-section">
+        <h4 class="warn">⚠️ 초대 못함 — Slack 미가입 (${result.lookupFailed.length}명)</h4>
+        ${renderList(items, it => `${it.name} (${it.email})`, it => it.error)}
+        <p style="font-size:12px; color:var(--muted); margin:6px 0 0; padding-left:6px;">
+          이 분들은 thehfk Slack에 가입되어 있지 않아 자동 초대할 수 없습니다. 별도 안내 필요.
+        </p>
+      </div>`);
+  }
+  if (result.inviteFailed && result.inviteFailed.length > 0) {
+    const items = result.inviteFailed.map(f => ({
+      name: nameByEmail(clubKey, f.email), email: f.email, error: f.error
+    }));
+    sections.push(`
+      <div class="result-section">
+        <h4 class="err">❌ 초대 실패 (${result.inviteFailed.length}명)</h4>
+        ${renderList(items, it => `${it.name} (${it.email})`, it => it.error)}
+        <p style="font-size:12px; color:var(--muted); margin:6px 0 0; padding-left:6px;">
+          Slack 정책·권한 문제로 추정. 수동 초대 필요.
+        </p>
+      </div>`);
+  }
+  if (result.rejectFailed && result.rejectFailed.length > 0) {
+    const items = result.rejectFailed.map(f => ({
+      name: nameByEmail(clubKey, f.email), email: f.email, error: f.error
+    }));
+    sections.push(`
+      <div class="result-section">
+        <h4 class="warn">⚠️ 미선정 DM 실패 (${result.rejectFailed.length}명)</h4>
+        ${renderList(items, it => `${it.name} (${it.email})`, it => it.error)}
+        <p style="font-size:12px; color:var(--muted); margin:6px 0 0; padding-left:6px;">
+          Slack 미가입 또는 DM 차단. 별도 이메일·카톡 등으로 미선정 안내 필요.
+        </p>
+      </div>`);
+  }
+
+  box.innerHTML = `
+    <h3>선정 처리 결과 — ${escapeHtml(clubInfo ? clubInfo.name : channel.name)}</h3>
+    <div style="font-size:12.5px; color:var(--muted); margin-bottom:14px;">
+      채널: #${escapeHtml(channel.name)}
+    </div>
+    <div class="result-summary">
+      <div class="result-stat ok">
+        <div class="val">${result.invited || 0}</div>
+        <div class="lbl">초대</div>
+      </div>
+      <div class="result-stat ${result.alreadyIn ? '' : ''}">
+        <div class="val">${result.alreadyIn || 0}</div>
+        <div class="lbl">이미 멤버</div>
+      </div>
+      <div class="result-stat ok">
+        <div class="val">${(result.rejectNotified || []).length}</div>
+        <div class="lbl">미선정 DM</div>
+      </div>
+      <div class="result-stat warn">
+        <div class="val">${(result.lookupFailed || []).length}</div>
+        <div class="lbl">미가입</div>
+      </div>
+      <div class="result-stat err">
+        <div class="val">${(result.inviteFailed || []).length + (result.rejectFailed || []).length}</div>
+        <div class="lbl">실패</div>
+      </div>
+    </div>
+    ${sections.join("")}
+    <button class="result-close" type="button" id="resultCloseBtn">확인</button>
+  `;
+  modal.classList.add("show");
+  document.getElementById("resultCloseBtn").addEventListener("click", () => {
+    modal.classList.remove("show");
+  });
 }
 
 // === 토스트 ===
