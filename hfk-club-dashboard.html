@@ -196,6 +196,8 @@
   .applicant-meta.member-partner { color: var(--hfk-red); border-color: var(--hfk-red); background: var(--hfk-red-soft); }
   .applicant-meta.member-unknown { color: #999; background: #f0f0f0; }
   .applicant-meta.member-nonseason { color: #946f00; border-color: #d4a72c; background: #fff8d6; }
+  .applicant-meta.invited { color: var(--green); border-color: var(--green); background: #e5f1ec; }
+  .applicant-meta.rejected { color: #946f00; border-color: #d4a72c; background: #fff8d6; }
 
   /* 채널 작업 영역 */
   .channel-actions {
@@ -671,6 +673,8 @@ const CHANNEL_PREFIX = "3--";
 
 // 채널 생성 상태 localStorage 키
 const CHANNEL_STATE_KEY = "hfk-club-channels";
+// 초대·미선정 처리 상태 localStorage 키
+const INVITE_STATE_KEY = "hfk-club-invited";
 
 // 26여름 멤버 명단 (HFK사람들 시트 기준, 2026-06-11 스냅샷)
 const MEMBER_STATUS = {
@@ -1014,8 +1018,14 @@ function buildApplicantsPanel(clubKey, info) {
     html += `<div class="applicant-empty">아직 신청자가 없습니다.</div>`;
   } else {
     for (const a of applicants) {
-      const targetLabel = a.target ? `<span class="applicant-meta">${escapeHtml(shortTarget(a.target))}</span>` : "";
-      const hostLabel = "";
+      const targetLabel = (a.target && !a.target.includes("비시즌"))
+        ? `<span class="applicant-meta">${escapeHtml(shortTarget(a.target))}</span>`
+        : "";
+      const inviteStatusLabel = a.email && isInvited(clubKey, a.email)
+        ? `<span class="applicant-meta invited">✅ 초대됨</span>`
+        : (a.email && isRejected(clubKey, a.email)
+            ? `<span class="applicant-meta rejected">📩 미선정 안내</span>`
+            : "");
       const checkbox = channelState && a.email
         ? `<input type="checkbox" class="applicant-check" data-club="${escapeAttr(clubKey)}" data-email="${escapeAttr(a.email)}" data-name="${escapeAttr(a.name)}">`
         : "";
@@ -1023,7 +1033,7 @@ function buildApplicantsPanel(clubKey, info) {
         <div class="applicant-row">
           <div class="applicant-head">
             ${checkbox}<span class="applicant-name">${escapeHtml(a.name)}</span>
-            ${memberBadge(a.name, a.target)}${hostLabel}${targetLabel}
+            ${memberBadge(a.name, a.target)}${inviteStatusLabel}${targetLabel}
           </div>
           <div class="applicant-motivation">${escapeHtml(a.motivation) || '<span class="applicant-empty">(동기 미작성)</span>'}</div>
         </div>
@@ -1187,6 +1197,37 @@ function setChannelState(clubKey, info) {
   localStorage.setItem(CHANNEL_STATE_KEY, JSON.stringify(state));
 }
 
+function getInviteState() {
+  try { return JSON.parse(localStorage.getItem(INVITE_STATE_KEY) || "{}"); }
+  catch (e) { return {}; }
+}
+function addInvitedEmails(clubKey, emails) {
+  if (!emails || emails.length === 0) return;
+  const s = getInviteState();
+  if (!s[clubKey]) s[clubKey] = { invited: [], rejected: [] };
+  const set = new Set(s[clubKey].invited || []);
+  emails.forEach(e => set.add(e));
+  s[clubKey].invited = Array.from(set);
+  localStorage.setItem(INVITE_STATE_KEY, JSON.stringify(s));
+}
+function addRejectedEmails(clubKey, emails) {
+  if (!emails || emails.length === 0) return;
+  const s = getInviteState();
+  if (!s[clubKey]) s[clubKey] = { invited: [], rejected: [] };
+  const set = new Set(s[clubKey].rejected || []);
+  emails.forEach(e => set.add(e));
+  s[clubKey].rejected = Array.from(set);
+  localStorage.setItem(INVITE_STATE_KEY, JSON.stringify(s));
+}
+function isInvited(clubKey, email) {
+  const s = getInviteState()[clubKey];
+  return s && s.invited && s.invited.includes(email);
+}
+function isRejected(clubKey, email) {
+  const s = getInviteState()[clubKey];
+  return s && s.rejected && s.rejected.includes(email);
+}
+
 async function callChannelAPI(action, payload) {
   if (!CHANNEL_API_URL || CHANNEL_API_URL.startsWith("REPLACE")) {
     throw new Error("CHANNEL_API_URL이 설정되지 않았습니다 (대시보드 코드 상단)");
@@ -1242,7 +1283,24 @@ async function handleInvite(clubKey, emails, rejectEmails) {
       rejectEmails: rejectEmails || [],
     });
     if (result.ok) {
+      // 성공적으로 초대된 이메일 저장 (초대 + 이미 멤버 둘 다)
+      const invitedEmailsSet = new Set();
+      if (result.invited > 0 || result.alreadyIn > 0) {
+        // API 응답엔 카운트만 있어 우리가 보낸 emails 기준으로 저장
+        // 실패자(lookupFailed, inviteFailed) 제외
+        const failedEmails = new Set([
+          ...(result.lookupFailed || []).map(f => f.email),
+          ...(result.inviteFailed || []).map(f => f.email),
+        ]);
+        for (const e of emails) {
+          if (!failedEmails.has(e)) invitedEmailsSet.add(e);
+        }
+      }
+      addInvitedEmails(clubKey, Array.from(invitedEmailsSet));
+      addRejectedEmails(clubKey, result.rejectNotified || []);
       showResultModal(clubKey, clubInfo, channel, result);
+      // 패널 재렌더해 뱃지 표시
+      renderClubBars(state._lastCounts || {});
     } else {
       showToast("실패: " + result.error, "error");
     }
