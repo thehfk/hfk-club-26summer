@@ -1055,6 +1055,7 @@ function renderHosts(hosts) {
 function escapeHtml(s) {
   return (s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 }
+function escapeAttr(s) { return escapeHtml(s); }
 function memberBadge(name, target) {
   if (target && target.includes("비시즌")) {
     return `<span class="applicant-meta member-nonseason">비시즌</span>`;
