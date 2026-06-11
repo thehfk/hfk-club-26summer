@@ -176,6 +176,72 @@
   .applicant-meta.member-re { color: #1a5b8a; border-color: #1a5b8a; background: #e8f1f8; }
   .applicant-meta.member-partner { color: var(--hfk-red); border-color: var(--hfk-red); background: var(--hfk-red-soft); }
   .applicant-meta.member-unknown { color: #999; background: #f0f0f0; }
+  .applicant-meta.member-nonseason { color: #946f00; border-color: #d4a72c; background: #fff8d6; }
+
+  /* 채널 작업 영역 */
+  .channel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 0;
+    margin-bottom: 8px;
+    border-bottom: 1px dashed var(--line);
+  }
+  .channel-status {
+    font-size: 12.5px;
+    color: var(--muted);
+    flex: 1;
+  }
+  .channel-status .ok { color: var(--green); font-weight: 600; }
+  .channel-status .err { color: var(--hfk-red); font-weight: 600; }
+  .channel-btn {
+    background: var(--hfk-red);
+    color: #fff;
+    border: 0;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .channel-btn:hover { background: #7a0000; }
+  .channel-btn:disabled { background: #bbb; cursor: not-allowed; }
+  .channel-btn.secondary {
+    background: #fff;
+    color: var(--hfk-red);
+    border: 1px solid var(--hfk-red);
+  }
+  .channel-btn.secondary:hover { background: var(--hfk-red-soft); }
+  .applicant-row .applicant-check {
+    width: 16px;
+    height: 16px;
+    margin-right: 6px;
+    accent-color: var(--hfk-red);
+    cursor: pointer;
+    vertical-align: middle;
+  }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    z-index: 200;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    opacity: 0;
+    transition: opacity 0.2s;
+    max-width: 90%;
+    text-align: center;
+  }
+  .toast.show { opacity: 1; }
+  .toast.error { background: var(--hfk-red); }
+  .toast.success { background: var(--green); }
   .applicant-motivation {
     color: var(--text);
     white-space: pre-wrap;
@@ -464,6 +530,16 @@ const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRONuqty-0ofz03
 // 대시보드 접근 암호
 const ACCESS_PW = "hfk1004";
 
+// Apps Script 웹앱 URL (배포 후 채워주세요)
+// 형식: https://script.google.com/macros/s/AKfycb.../exec
+const CHANNEL_API_URL = "https://script.google.com/macros/s/AKfycbyswd0fRe5SaMnAjMKuUjxm9M2RQr7g6_xaskbfjQBGd52U2rrPaO3LDqcc-2h9dy5vUA/exec";
+
+// 채널명 prefix
+const CHANNEL_PREFIX = "3--";
+
+// 채널 생성 상태 localStorage 키
+const CHANNEL_STATE_KEY = "hfk-club-channels";
+
 // 26여름 멤버 명단 (HFK사람들 시트 기준, 2026-06-11 스냅샷)
 const MEMBER_STATUS = {
   "박초희":"first","임이랑":"first","이호준":"first","오주영":"first","손지희":"first","이보라":"first","이유라":"first","강주언":"first","이성규":"first","김지원":"first","유은지":"first","최민정":"first","한소희":"first","김유석":"first","서연주":"first","김혜미":"first","김주현":"first","이정민":"first","유다솜":"first","박지영":"first","김태림":"first","임세리":"first","김진":"first","한승훈":"first","배진현":"first","김아영":"first","최경원":"first","이예현":"first","안현우":"first","서지희":"first","최성우":"first","김학서":"first","박혜봉":"first","김승연":"first","육근혜":"first","유영이":"first","주영은":"first","이선혜":"first",
@@ -609,6 +685,7 @@ function colIdx(keyword) {
 function render() {
   const idxClubs = colIdx("클럽");
   const idxName = colIdx("이름");
+  const idxEmail = colIdx("이메일");
   const idxMotiv = colIdx("동기");
   const idxHost = colIdx("호스트");
   const idxTarget = colIdx("가입");
@@ -625,6 +702,7 @@ function render() {
   for (const r of state.rows) {
     const clubsCell = (r[idxClubs] || "").trim();
     const name = (r[idxName] || "(이름 없음)").trim();
+    const email = (r[idxEmail] || "").trim();
     const motivation = (r[idxMotiv] || "").trim();
     const host = (r[idxHost] || "").trim();
     const target = (r[idxTarget] || "").trim();
@@ -636,20 +714,21 @@ function render() {
       for (const c of clubs) {
         clubCounts[c] = (clubCounts[c] || 0) + 1;
         if (!clubApplicants[c]) clubApplicants[c] = [];
-        clubApplicants[c].push({ name, motivation, isHost, target });
+        clubApplicants[c].push({ name, email, motivation, isHost, target });
       }
     }
     if (target) {
       memberCounts[target] = (memberCounts[target] || 0) + 1;
       if (!targetApplicants[target]) targetApplicants[target] = [];
-      targetApplicants[target].push({ name, motivation, isHost, target, clubs: clubsCell });
+      targetApplicants[target].push({ name, email, motivation, isHost, target, clubs: clubsCell });
     }
 
     if (isHost) {
       hostList.push({
         name,
         clubs: clubsCell,
-        motivation
+        motivation,
+        target
       });
     }
   }
@@ -721,18 +800,39 @@ function buildApplicantsPanel(clubKey, info) {
   const panel = document.createElement("div");
   panel.className = "applicants-panel";
   const applicants = state.clubApplicants[clubKey] || [];
+  const channelName = CHANNEL_PREFIX + clubKey;
+  const channelState = getChannelState()[clubKey];
+
+  let actionsHtml = `
+    <div class="channel-actions">
+      <div class="channel-status" id="ch-status-${escapeAttr(clubKey)}">
+        ${channelState
+          ? `채널 <span class="ok">#${escapeHtml(channelState.name)}</span> 생성됨 (${channelState.id})`
+          : `채널명: <code>#${escapeHtml(channelName)}</code>`}
+      </div>
+      ${channelState
+        ? `<button class="channel-btn secondary" data-action="invite-selected" data-club="${escapeAttr(clubKey)}">선택한 멤버 초대</button>
+           <button class="channel-btn" data-action="invite-all" data-club="${escapeAttr(clubKey)}">전체 초대</button>`
+        : `<button class="channel-btn" data-action="create-channel" data-club="${escapeAttr(clubKey)}">채널 생성</button>`}
+    </div>
+  `;
+
   let html = `<div class="panel-head">${info.id}. ${escapeHtml(info.name)} — 신청자 ${applicants.length}명</div>`;
+  html += actionsHtml;
   if (applicants.length === 0) {
     html += `<div class="applicant-empty">아직 신청자가 없습니다.</div>`;
   } else {
     for (const a of applicants) {
       const targetLabel = a.target ? `<span class="applicant-meta">${escapeHtml(shortTarget(a.target))}</span>` : "";
       const hostLabel = a.isHost ? `<span class="applicant-meta host">호스트 지원</span>` : "";
+      const checkbox = channelState && a.email
+        ? `<input type="checkbox" class="applicant-check" data-club="${escapeAttr(clubKey)}" data-email="${escapeAttr(a.email)}" data-name="${escapeAttr(a.name)}">`
+        : "";
       html += `
         <div class="applicant-row">
           <div class="applicant-head">
-            <span class="applicant-name">${escapeHtml(a.name)}</span>
-            ${memberBadge(a.name)}${hostLabel}${targetLabel}
+            ${checkbox}<span class="applicant-name">${escapeHtml(a.name)}</span>
+            ${memberBadge(a.name, a.target)}${hostLabel}${targetLabel}
           </div>
           <div class="applicant-motivation">${escapeHtml(a.motivation) || '<span class="applicant-empty">(동기 미작성)</span>'}</div>
         </div>
@@ -740,6 +840,38 @@ function buildApplicantsPanel(clubKey, info) {
     }
   }
   panel.innerHTML = html;
+
+  // 버튼 이벤트 바인딩
+  panel.querySelectorAll(".channel-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const action = btn.dataset.action;
+      const club = btn.dataset.club;
+      if (action === "create-channel") {
+        handleCreateChannel(club);
+      } else if (action === "invite-selected") {
+        const emails = Array.from(panel.querySelectorAll(`.applicant-check:checked`))
+          .map(c => c.dataset.email)
+          .filter(Boolean);
+        if (emails.length === 0) {
+          showToast("선택된 멤버가 없습니다", "error");
+          return;
+        }
+        handleInvite(club, emails);
+      } else if (action === "invite-all") {
+        const emails = (state.clubApplicants[club] || []).map(a => a.email).filter(Boolean);
+        if (emails.length === 0) {
+          showToast("초대할 멤버가 없습니다", "error");
+          return;
+        }
+        if (!confirm(`${emails.length}명 전체를 채널에 초대합니다. 진행할까요?`)) return;
+        handleInvite(club, emails);
+      }
+    });
+  });
+  panel.querySelectorAll(".applicant-check").forEach(c => {
+    c.addEventListener("click", e => e.stopPropagation());
+  });
   return panel;
 }
 
@@ -794,7 +926,7 @@ function buildTargetPanel(target) {
         <div class="applicant-row">
           <div class="applicant-head">
             <span class="applicant-name">${escapeHtml(a.name)}</span>
-            ${memberBadge(a.name)}${hostLabel}${clubsLabel}
+            ${memberBadge(a.name, a.target)}${hostLabel}${clubsLabel}
           </div>
           <div class="applicant-motivation">${escapeHtml(a.motivation) || '<span class="applicant-empty">(동기 미작성)</span>'}</div>
         </div>
@@ -824,7 +956,7 @@ function renderHosts(hosts) {
   for (const h of hosts) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${escapeHtml(h.name)} ${memberBadge(h.name)}</td>
+      <td>${escapeHtml(h.name)} ${memberBadge(h.name, h.target)}</td>
       <td class="clubs-cell">${escapeHtml(h.clubs)}</td>
       <td class="motiv-cell">${escapeHtml(h.motivation)}</td>
     `;
@@ -837,10 +969,109 @@ function renderHosts(hosts) {
 function escapeHtml(s) {
   return (s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 }
-function memberBadge(name) {
+function memberBadge(name, target) {
+  if (target && target.includes("비시즌")) {
+    return `<span class="applicant-meta member-nonseason">비시즌</span>`;
+  }
   const s = memberStatus(name);
   if (s !== "first") return "";
   return `<span class="applicant-meta member-first">첫등록</span>`;
+}
+
+// === 채널 작업 ===
+function getChannelState() {
+  try {
+    return JSON.parse(localStorage.getItem(CHANNEL_STATE_KEY) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+function setChannelState(clubKey, info) {
+  const state = getChannelState();
+  state[clubKey] = info;
+  localStorage.setItem(CHANNEL_STATE_KEY, JSON.stringify(state));
+}
+
+async function callChannelAPI(action, payload) {
+  if (!CHANNEL_API_URL || CHANNEL_API_URL.startsWith("REPLACE")) {
+    throw new Error("CHANNEL_API_URL이 설정되지 않았습니다 (대시보드 코드 상단)");
+  }
+  const res = await fetch(CHANNEL_API_URL, {
+    method: "POST",
+    body: JSON.stringify({ ...payload, action, auth: ACCESS_PW }),
+    // Apps Script는 Content-Type을 설정하면 CORS preflight 발생하므로 생략
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return await res.json();
+}
+
+async function handleCreateChannel(clubKey) {
+  const name = CHANNEL_PREFIX + clubKey;
+  if (!confirm(`#${name} 채널을 생성합니다. 진행할까요?`)) return;
+  showToast("채널 생성 중...");
+  try {
+    const result = await callChannelAPI("createChannel", { name });
+    if (result.ok) {
+      setChannelState(clubKey, { id: result.channelId, name: result.channelName });
+      showToast(
+        result.alreadyExists
+          ? `이미 존재: #${result.channelName} (연결됨)`
+          : `생성 완료: #${result.channelName}`,
+        "success"
+      );
+      // 패널 재렌더
+      renderClubBars(state._lastCounts || {});
+    } else {
+      showToast("실패: " + result.error, "error");
+    }
+  } catch (e) {
+    showToast("에러: " + e.message, "error");
+  }
+}
+
+async function handleInvite(clubKey, emails) {
+  const channel = getChannelState()[clubKey];
+  if (!channel) {
+    showToast("채널이 먼저 생성되어야 합니다", "error");
+    return;
+  }
+  showToast(`${emails.length}명 초대 중...`);
+  try {
+    const result = await callChannelAPI("inviteToChannel", {
+      channelId: channel.id,
+      emails: emails,
+    });
+    if (result.ok) {
+      const msgs = [`초대 완료: ${result.invited}명`];
+      if (result.alreadyIn) msgs.push(`이미 참여: ${result.alreadyIn}명`);
+      if (result.lookupFailed && result.lookupFailed.length)
+        msgs.push(`Slack 미가입: ${result.lookupFailed.length}명`);
+      if (result.inviteFailed && result.inviteFailed.length)
+        msgs.push(`실패: ${result.inviteFailed.length}명`);
+      showToast(msgs.join(" · "), "success");
+    } else {
+      showToast("실패: " + result.error, "error");
+    }
+  } catch (e) {
+    showToast("에러: " + e.message, "error");
+  }
+}
+
+// === 토스트 ===
+let _toastTimer = null;
+function showToast(message, type) {
+  let el = document.getElementById("toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "toast";
+    el.className = "toast";
+    document.body.appendChild(el);
+  }
+  el.className = "toast " + (type || "");
+  el.textContent = message;
+  requestAnimationFrame(() => el.classList.add("show"));
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove("show"), 4000);
 }
 
 // 필터 chip
