@@ -910,7 +910,7 @@ function buildApplicantsPanel(clubKey, info) {
   } else {
     for (const a of applicants) {
       const targetLabel = a.target ? `<span class="applicant-meta">${escapeHtml(shortTarget(a.target))}</span>` : "";
-      const hostLabel = a.isHost ? `<span class="applicant-meta host">호스트 지원</span>` : "";
+      const hostLabel = "";
       const checkbox = channelState && a.email
         ? `<input type="checkbox" class="applicant-check" data-club="${escapeAttr(clubKey)}" data-email="${escapeAttr(a.email)}" data-name="${escapeAttr(a.name)}">`
         : "";
@@ -1006,7 +1006,7 @@ function buildTargetPanel(target) {
     html += `<div class="applicant-empty">아직 신청자가 없습니다.</div>`;
   } else {
     for (const a of applicants) {
-      const hostLabel = a.isHost ? `<span class="applicant-meta host">호스트 지원</span>` : "";
+      const hostLabel = "";
       const clubsLabel = a.clubs ? `<span class="applicant-meta">${escapeHtml(a.clubs)}</span>` : "";
       html += `
         <div class="applicant-row">
